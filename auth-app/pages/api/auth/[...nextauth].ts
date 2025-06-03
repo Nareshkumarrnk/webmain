@@ -1,38 +1,57 @@
-import NextAuth from 'next-auth';
-import Google from 'next-auth/providers/google';
-import GitHub from 'next-auth/providers/github';
-import AzureAD from 'next-auth/providers/azure-ad';
-import Credentials from 'next-auth/providers/credentials';
-import dbConnect from '@/lib/dbConnect';
-import User from '@/models/User';
+import NextAuth, { NextAuthOptions } from 'next-auth';
+import GoogleProvider from 'next-auth/providers/google';
+import GitHubProvider from 'next-auth/providers/github';
+import AzureADProvider from 'next-auth/providers/azure-ad';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import dbConnect from 'lib/dbConnect';
+import User from 'models/User';
 import bcrypt from 'bcryptjs';
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   providers: [
-    Google({ clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! }),
-    GitHub({ clientId: process.env.GITHUB_ID!, clientSecret: process.env.GITHUB_SECRET! }),
-    AzureAD({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID,
+    GoogleProvider({ 
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     }),
-    Credentials({
+    GitHubProvider({ 
+      clientId: process.env.GITHUB_ID || '', 
+      clientSecret: process.env.GITHUB_SECRET || '',
+    }),
+    AzureADProvider({
+      clientId: process.env.AZURE_AD_CLIENT_ID || '',
+      clientSecret: process.env.AZURE_AD_CLIENT_SECRET || '',
+      tenantId: process.env.AZURE_AD_TENANT_ID || '',
+    }),
+    CredentialsProvider({
       name: 'Credentials',
-      credentials: { email: {}, password: {} },
+      credentials: { 
+        email: { label: 'Email', type: 'text', placeholder: 'Enter your email' }, 
+        password: { label: 'Password', type: 'password', placeholder: 'Enter your password' } 
+      },
       async authorize(credentials) {
-        await dbConnect();
-        const user = await User.findOne({ email: credentials.email });
-        if (!user) throw new Error('User not found');
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) throw new Error('Invalid password');
-        return user;
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error('Missing credentials');
+        }
+
+        try {
+          await dbConnect();
+          const user = await User.findOne({ email: credentials.email });
+          if (!user) throw new Error('No user found with this email');
+
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) throw new Error('Incorrect password');
+
+          return user;
+        } catch (error) {
+          throw new Error('Authentication failed');
+        }
       },
     }),
   ],
   pages: {
     signIn: '/auth/signin',
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || '',
 };
 
 export default NextAuth(authOptions);

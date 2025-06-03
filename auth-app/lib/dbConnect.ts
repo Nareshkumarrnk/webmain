@@ -1,40 +1,35 @@
 import mongoose, { Mongoose } from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+const MONGODB_URI = process.env.MONGODB_URI as string;
 
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
-// Fix: TypeScript typing for global caching
+// TypeScript typing for global caching
 declare global {
-  // eslint-disable-next-line no-var
-  var mongoose: {
+  var mongooseCache: {
     conn: Mongoose | null;
     promise: Promise<Mongoose> | null;
-  } | undefined;
-}
-
-let cached = global.mongoose;
-
-if (!cached) {
-  cached = global.mongoose = {
-    conn: null,
-    promise: null,
   };
 }
 
-async function dbConnect(): Promise<Mongoose> {
-  if (cached.conn) return cached.conn;
+global.mongooseCache = global.mongooseCache || {
+  conn: null,
+  promise: null,
+};
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
+async function dbConnect(): Promise<Mongoose> {
+  if (global.mongooseCache.conn) return global.mongooseCache.conn;
+
+  if (!global.mongooseCache.promise) {
+    global.mongooseCache.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
     });
   }
 
-  cached.conn = await cached.promise;
-  return cached.conn;
+  global.mongooseCache.conn = await global.mongooseCache.promise;
+  return global.mongooseCache.conn;
 }
 
 export default dbConnect;
